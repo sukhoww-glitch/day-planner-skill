@@ -1,0 +1,99 @@
+#!/bin/bash
+# Apple Reminders helper for the day-planner skill.
+#
+#   rem lists
+#   rem open [list]        TSV: id \t list \t name \t due(YYYY-MM-DD HH:MM|-) \t priority \t note
+#   rem today [list]       same, filtered to due <= today 23:59 (undated excluded)
+#   rem add "<list>" "<name>" "<YYYY-MM-DD HH:MM|->" "<0|1|5|9>" "<note|->"
+#   rem due <id> "<YYYY-MM-DD HH:MM>"
+#   rem prio <id> <0|1|5|9>
+#   rem move <id> "<list>"
+#   rem newlist "<name>"
+#   rem done <id>
+#   rem delete <id>
+#
+# Priority: 0 none, 1 high, 5 medium, 9 low.
+# Reminders' AppleScript bridge is slow (~20-30s for a full read). Read once per session.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cmd="${1:-open}"; shift || true
+
+esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+case "$cmd" in
+  lists)
+    osascript -e 'set AppleScript'"'"'s text item delimiters to linefeed
+tell application "Reminders" to return (name of every list) as text'
+    ;;
+
+  open)
+    osascript "$DIR/open.applescript" "${1:--}"
+    ;;
+
+  today)
+    end="$(date +%Y-%m-%d) 23:59"
+    osascript "$DIR/open.applescript" "${1:--}" | awk -F'\t' -v e="$end" '$4 != "-" && $4 <= e'
+    ;;
+
+  add)
+    list="$1"; name="$2"; due="${3:--}"; prio="${4:-0}"; note="${5:--}"
+    [ "$note" = "-" ] && note=""
+    if [ "$due" = "-" ]; then
+      dueprop=""
+    else
+      dueprop=", due date:my mkdate(${due:0:4}, ${due:5:2}, ${due:8:2}, ${due:11:2}, ${due:14:2})"
+    fi
+    osascript <<EOF
+on mkdate(y, m, d, h, mi)
+	set dt to current date
+	set year of dt to y
+	set month of dt to m
+	set day of dt to d
+	set time of dt to (h * hours) + (mi * minutes)
+	return dt
+end mkdate
+
+tell application "Reminders"
+	set R to make new reminder at end of list "$(esc "$list")" with properties {name:"$(esc "$name")", body:"$(esc "$note")", priority:$prio$dueprop}
+	return id of R
+end tell
+EOF
+    ;;
+
+  due)
+    id="$1"; due="$2"
+    osascript <<EOF
+tell application "Reminders"
+	set dt to current date
+	set year of dt to ${due:0:4}
+	set month of dt to ${due:5:2}
+	set day of dt to ${due:8:2}
+	set time of dt to (${due:11:2} * hours) + (${due:14:2} * minutes)
+	set due date of (first reminder whose id is "$id") to dt
+	return "ok"
+end tell
+EOF
+    ;;
+
+  move)
+    osascript -e "tell application \"Reminders\" to move (first reminder whose id is \"$1\") to list \"$2\"" -e 'return "ok"'
+    ;;
+
+  newlist)
+    osascript -e "tell application \"Reminders\" to make new list with properties {name:\"$1\"}" -e 'return "ok"'
+    ;;
+
+  prio)
+    osascript -e "tell application \"Reminders\" to set priority of (first reminder whose id is \"$1\") to $2" -e 'return "ok"'
+    ;;
+
+  done)
+    osascript -e "tell application \"Reminders\" to set completed of (first reminder whose id is \"$1\") to true" -e 'return "ok"'
+    ;;
+
+  delete)
+    osascript -e "tell application \"Reminders\" to delete (first reminder whose id is \"$1\")" -e 'return "ok"'
+    ;;
+
+  *) echo "unknown command: $cmd (lists|open|today|add|due|prio|move|newlist|done|delete)" >&2; exit 1 ;;
+esac

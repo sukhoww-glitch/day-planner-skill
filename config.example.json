@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "",
+  "language": "en",
+
+  "work_hours": {
+    "start": "10:00",
+    "end": "18:00"
+  },
+
+  "calendars": {
+    "include": [
+      { "id": "", "account": "", "title": "" }
+    ],
+    "not_busy": []
+  },
+
+  "tasks": {
+    "backend": "reminders",
+    "lists": [
+      { "name": "", "purpose": "" }
+    ]
+  },
+
+  "plans_dir": "~/Documents/day-planner/plans",
+
+  "rules": {
+    "max_tasks": 5,
+    "deep_work_morning": true,
+    "meeting_prep_minutes": 20,
+    "no_overtime": true,
+    "group_by_context": true
+  }
+}

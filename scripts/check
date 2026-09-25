@@ -1,0 +1,37 @@
+#!/bin/bash
+# Environment check for day-planner onboarding. Prints one line per check:
+#   ok|fail <check> <detail>
+# Never exits non-zero, so every check always runs.
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG="${DAY_PLANNER_CONFIG:-$HOME/.config/day-planner/config.json}"
+
+if [ "$(uname)" = "Darwin" ]; then
+  echo "ok     macos      $(sw_vers -productVersion)"
+else
+  echo "fail   macos      this skill runs only on macOS"
+  exit 0
+fi
+
+if command -v swiftc >/dev/null 2>&1; then
+  echo "ok     swiftc     $(swiftc --version 2>&1 | head -1)"
+else
+  echo "fail   swiftc     run: xcode-select --install"
+fi
+
+if out="$("$DIR/cal" --calendars 2>&1)"; then
+  echo "ok     calendar   $(printf '%s\n' "$out" | grep -c .) calendars visible"
+else
+  echo "fail   calendar   $out"
+fi
+
+if out="$("$DIR/rem" lists 2>&1)"; then
+  echo "ok     reminders  $(printf '%s\n' "$out" | grep -c .) lists visible"
+else
+  echo "fail   reminders  $out"
+fi
+
+if [ -f "$CONFIG" ]; then
+  echo "ok     config     $CONFIG"
+else
+  echo "fail   config     not created yet ($CONFIG)"
+fi
